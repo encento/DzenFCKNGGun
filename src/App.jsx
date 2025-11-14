@@ -444,8 +444,16 @@ export default function App() {
   }, [ble]);
 
   // Управление
+// const [running, setRunning] = useState(false);
+const runningRef = useRef(false);
+useEffect(() => {
+  runningRef.current = running;
+}, [running]);
+
 const startSession = useCallback(async () => {
+  // если уже идёт сессия — игнорируем повторный клик
   if (runningRef.current) return;
+
   if (!ble.connected) {
     ble.pushLog("Start skipped: BLE not connected");
     return;
@@ -454,35 +462,42 @@ const startSession = useCallback(async () => {
   runningRef.current = true;
   setRunning(true);
 
-  // Чистим локальное состояние
+  // Чистим локальное состояние сессии
   setShots([]);
-  shotsMapRef.current.clear();
-  fsSetRef.current.clear();
-  pendingRef.current.clear();
-  snumCacheRef.current = { value: 0, ts: 0 };
-  sessionBaseRef.current = 0;
-
-  // 1. Снимаем базовый SNUM ПЕРЕД стартом упражнения
-  try {
-    const base = await ble.getShotCount();
-    sessionBaseRef.current = base;
-    ble.pushLog(`Session baseline SNUM = ${base}`);
-  } catch (e) {
-    sessionBaseRef.current = 0;
-    ble.pushLog("Baseline SNUM read error: " + (e?.message || e));
-  }
+  shotsMapRef.current?.clear?.();
+  fsSetRef.current?.clear?.();
+  pendingRef.current?.clear?.();
+  // если у тебя есть sessionBaseRef/lastShotTsRef и т.п. — можно тут обнулить
 
   try {
-    // 2. Настройка таймера на устройстве
+    // 1) Настройка таймера на устройстве
     if (modeUi === "fixed") {
-      await ble.setTMin(5000);
-      await ble.setTMax(5000);
+      await ble.writeLine("#S_TMIN=5000");
+      await ble.writeLine("#S_TMAX=5000");
     } else {
-      // random 5–10s
-      await ble.setTMin(5000);
-      await ble.setTMax(10000);
+      // Random 5–10 s
+      await ble.writeLine("#S_TMIN=5000");
+      await ble.writeLine("#S_TMAX=10000");
     }
 
+    // 2) Отправляем старт. ЭТО главная строка — именно она шлёт BEEP
+    await ble.writeLine("#E_STARTT");
+    ble.pushLog("BEEP sent (#E_STARTT)");
+
+    // 3) Если у тебя уже есть функции ожидания STATE=2 и запуска поллинга —
+    // вызываем их, но только если они действительно существуют.
+    if (typeof waitUntilBeepAndCollectFS === "function") {
+      await waitUntilBeepAndCollectFS();
+    }
+    if (typeof startPollingShots === "function") {
+      await startPollingShots();
+    }
+  } catch (e) {
+    ble.pushLog("Start error: " + (e?.message || e));
+    runningRef.current = false;
+    setRunning(false);
+  }
+}, [ble, modeUi, setRunning, setShots, waitUntilBeepAndCollectFS, startPollingShots])
     // 3. Отправляем BEEP (E_STARTT)
     await ble.startDevice(); // внутри шлёт #E_STARTT\r
     ble.pushLog("BEEP sent (#E_STARTT)");
@@ -720,7 +735,7 @@ const startSession = useCallback(async () => {
         </div>
 
         <div className="mt-6 text-xs text-slate-500">
-         Тестовая сборка v 0.9802 от 14.11.2025
+         Тестовая сборка v 0.9803 от 14.11.2025
         </div>
       </div>
     </div>

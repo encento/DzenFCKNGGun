@@ -708,7 +708,7 @@ export default function App() {
         </div>
 
         <div className="mt-6 text-xs text-slate-500">
-         Тестовая сборка v 0.98 от 13.11.2025
+         Тестовая сборка v 0.9801 от 14.11.2025
         </div>
       </div>
     </div>

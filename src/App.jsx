@@ -444,51 +444,70 @@ export default function App() {
   }, [ble]);
 
   // Управление
- const startSession = async () => {
-  if (running) return;
+const startSession = useCallback(async () => {
+  if (runningRef.current) return;
   if (!ble.connected) {
     ble.pushLog("Start skipped: BLE not connected");
     return;
   }
+
+  runningRef.current = true;
   setRunning(true);
 
-  // локально чистим всё
+  // Чистим локальное состояние
+  setShots([]);
   shotsMapRef.current.clear();
   fsSetRef.current.clear();
   pendingRef.current.clear();
   snumCacheRef.current = { value: 0, ts: 0 };
-  setShots([]);
-  setDevState(0);
+  sessionBaseRef.current = 0;
+
+  // 1. Снимаем базовый SNUM ПЕРЕД стартом упражнения
+  try {
+    const base = await ble.getShotCount();
+    sessionBaseRef.current = base;
+    ble.pushLog(`Session baseline SNUM = ${base}`);
+  } catch (e) {
+    sessionBaseRef.current = 0;
+    ble.pushLog("Baseline SNUM read error: " + (e?.message || e));
+  }
 
   try {
-    // 👉 ЖЁСТКО СБРАСЫВАЕМ УПРАЖНЕНИЕ НА УСТРОЙСТВЕ
-    try {
-      await ble.toStandby(); // #S_STB
-      await sleep(50);
-      await ble.toReady();   // #S_GRD
-      ble.pushLog("Device reset to STANDBY→READY before start");
-    } catch (e) {
-      ble.pushLog("Device reset warning: " + (e?.message || e));
-    }
-
-    // Настройки таймера
+    // 2. Настройка таймера на устройстве
     if (modeUi === "fixed") {
       await ble.setTMin(5000);
       await ble.setTMax(5000);
     } else {
+      // random 5–10s
       await ble.setTMin(5000);
       await ble.setTMax(10000);
     }
 
+    // 3. Отправляем BEEP (E_STARTT)
+    await ble.startDevice(); // внутри шлёт #E_STARTT\r
     ble.pushLog("BEEP sent (#E_STARTT)");
-    await ble.startDevice();
-    await sleep(120);
 
+    // 4. Ждём, пока устройство перейдёт в STATE=2 (Started)
+    const ok = await waitUntilBeepAndCollectFS();
+    if (!ok) {
+      throw new Error("waitUntilBeepAndCollectFS returned false");
+    }
+
+    // 5. Запускаем основной опрос (SNUM + STIME)
     await startPollingShots();
-  } catch (e) {
-    ble.pushLog("Start error: " + (e?.message || e));
+  } catch (err) {
+    ble.pushLog("Start error: " + (err?.message || err));
+    runningRef.current = false;
+    setRunning(false);
   }
-};
+}, [
+  ble,
+  modeUi,
+  setRunning,
+  setShots,
+  waitUntilBeepAndCollectFS,
+  startPollingShots,
+]);
 
 
   const stopOnly = async () => {
@@ -503,13 +522,6 @@ export default function App() {
     pendingRef.current.clear();
     setShots([]);
     setDevState(0);
-    try {
-      await ble.toStandby();
-      await ble.toReady();
-      ble.pushLog("Device SNUM reset via #S_STB→#S_GRD");
-    } catch (e) {
-      ble.pushLog("Device reset error: " + (e?.message || e));
-    }
   };
 
   return (
@@ -708,7 +720,7 @@ export default function App() {
         </div>
 
         <div className="mt-6 text-xs text-slate-500">
-         Тестовая сборка v 0.9801 от 14.11.2025
+         Тестовая сборка v 0.9802 от 14.11.2025
         </div>
       </div>
     </div>

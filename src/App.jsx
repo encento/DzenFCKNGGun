@@ -700,6 +700,7 @@ const chartData = useMemo(() => {
 
         <div className="mt-4 text-xs text-slate-500">
           Build v0.9809
+          Build v0.9809 - APK ready
         </div>
       </div>
     </div>

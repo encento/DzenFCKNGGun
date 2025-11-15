@@ -40,3 +40,10 @@
 .read-the-docs {
   color: #888;
 }
+@media (max-width: 768px) {
+  .app {
+    padding: 12px;
+    max-width: 100%;
+  }
+}
+

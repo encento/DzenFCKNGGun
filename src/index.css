@@ -67,3 +67,10 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+/* Прячем лог на телефонах */
+@media (max-width: 768px) {
+  .ble-log {
+    display: none;
+  }
+}
+

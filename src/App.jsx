@@ -451,7 +451,7 @@ const chartData = useMemo(() => {
       <div className="max-w-6xl mx-auto space-y-4">
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-            Laser Timer
+            DzenGun STE
           </h1>
           <div className="text-sm text-slate-400">
             BLE:{" "}
@@ -699,7 +699,7 @@ const chartData = useMemo(() => {
         </div>
 
         <div className="mt-4 text-xs text-slate-500">
-          LaserTimer UI v0.9807
+          Build v0.9807
         </div>
       </div>
     </div>
